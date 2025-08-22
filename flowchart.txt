@@ -1,0 +1,45 @@
+[ MoSPI Website / Press Releases ]
+              │
+              ▼
+        [ Web Scraper ]
+   - Discovery & Pagination
+   - Download PDFs
+   - Extract metadata
+              │
+              ▼
+       [ SQLite Database ]
+   tables: documents | files | tables
+   - Stores metadata, text, and tables
+              │
+              ▼
+       [ PDF Processing ]
+   - Extract text (pdfplumber)
+   - Extract tables (camelot)
+              │
+              ▼
+         [ Chunking ]
+   - Overlapping chunks (800 tokens / 100 overlap)
+   - Stored in `chunks` table
+              │
+              ▼
+       [ Embeddings ]
+   - SentenceTransformer (384-d vectors)
+   - Embeddings stored for each chunk
+              │
+              ▼
+          [ FAISS Index ]
+   - Efficient semantic search
+   - Saved as `mospi.index`
+              │
+              ▼
+      [ Query / Retrieval ]
+   - User query → embedding → search FAISS
+   - Retrieve top-k relevant chunks
+              │
+              ▼
+       [ Gemini API / RAG ]
+   - Feed chunks + query
+   - Generate answer
+              │
+              ▼
+          [ Chatbot Response ]
