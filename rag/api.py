@@ -1,4 +1,3 @@
-# rag/api.py
 import os
 import sqlite3
 from typing import List, Dict, Any
@@ -11,18 +10,15 @@ from sentence_transformers import SentenceTransformer
 
 from dotenv import load_dotenv
 
-# Load environment variables from .env
 load_dotenv()
 
 
-# Optional: Gemini for real answers (falls back to extractive if not available)
 USE_GEMINI = True
 try:
     import google.generativeai as genai
 except Exception:
     USE_GEMINI = False
 
-# ---------- Config ----------
 DB_PATH = os.getenv("DB_PATH", "data/mospi.db")
 INDEX_PATH = os.getenv("INDEX_PATH", "data/processed/mospi.index")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
@@ -30,31 +26,27 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
 
-# ---------- App ----------
 app = FastAPI(title="MoSPI RAG API", version="1.0")
 
-# ---------- Load FAISS + Embedding Model ----------
-print("📥 Loading FAISS index + embeddings model...")
+print(" Loading FAISS index + embeddings model...")
 if not os.path.exists(INDEX_PATH):
     raise FileNotFoundError(f"FAISS index not found at {INDEX_PATH}. Build it with: python -m pipeline.run")
 
 index = faiss.read_index(INDEX_PATH)
 model = SentenceTransformer(EMBED_MODEL)
 
-# ---------- Gemini (optional) ----------
 llm = None
 if USE_GEMINI and GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         llm = genai.GenerativeModel(GEMINI_MODEL)
-        print(f"🤖 Gemini model ready: {GEMINI_MODEL}")
+        print(f" Gemini model ready: {GEMINI_MODEL}")
     except Exception as e:
-        print(f"⚠️ Gemini init failed, falling back to extractive answers: {e}")
+        print(f" Gemini init failed, falling back to extractive answers: {e}")
         llm = None
 else:
-    print("ℹ️ GEMINI_API_KEY not set or google-generativeai not installed; using extractive fallback.")
+    print("ℹ GEMINI_API_KEY not set or google-generativeai not installed; using extractive fallback.")
 
-# ---------- DB Helpers ----------
 def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -84,7 +76,6 @@ def fetch_chunks_by_ids(conn: sqlite3.Connection, chunk_ids: List[int]) -> List[
     ).fetchall()
     return rows
 
-# ---------- Retrieval ----------
 def embed_query(query: str) -> np.ndarray:
     q = model.encode([query], convert_to_numpy=True)
     return q.astype("float32") if q.dtype != np.float32 else q
@@ -101,15 +92,12 @@ def retrieve(query: str, k: int = 5) -> List[Dict[str, Any]]:
 
     conn = get_conn()
     try:
-        # Fetch chunk rows
         chunk_rows = fetch_chunks_by_ids(conn, ids)
         by_chunk = {int(r["chunk_id"]): r for r in chunk_rows}
 
-        # Collect needed doc_ids
         doc_ids = sorted({int(r["document_id"]) for r in chunk_rows})
         doc_meta = fetch_docs_meta(conn, doc_ids)
 
-        # Preserve FAISS order
         results: List[Dict[str, Any]] = []
         for cid, dist in zip(ids, dists):
             row = by_chunk.get(cid)
@@ -135,44 +123,61 @@ def retrieve(query: str, k: int = 5) -> List[Dict[str, Any]]:
     finally:
         conn.close()
 
-# ---------- Answering ----------
-def build_prompt(query: str, chunks: List[Dict[str, Any]], max_chars: int = 8000) -> str:
-    # Concatenate top chunks into context with soft char budget
+def build_prompt(query: str, chunks: List[Dict[str, Any]], history: List[Dict[str, str]] = None, max_chars: int = 8000) -> str:
+    """Builds a chatbot-style prompt with optional conversation history."""
     context_parts = []
     used = 0
     for c in chunks:
-        piece = f"[Title: {c['title']}]\n[URL: {c['url']}]\n{c['text']}\n\n"
+        piece = f"[Source: {c['title'] or 'Unknown'} — {c['url'] or 'No URL'}]\n{c['text']}\n\n"
         if used + len(piece) > max_chars:
             break
         context_parts.append(piece)
         used += len(piece)
 
     context = "".join(context_parts).strip()
-    prompt = (
-        "You are a precise assistant specialized in documents from India's Ministry of Statistics and Programme Implementation (MoSPI). "
-        "Answer ONLY using the provided context. If the answer is not present, say you don't have enough information.\n\n"
-        f"Question:\n{query}\n\n"
-        f"Context:\n{context}\n\n"
-        "Instructions:\n"
-        "- Be concise and factual.\n"
-        "- Use bullet points when appropriate.\n"
-        "- Cite sources by including their titles/URLs inline when relevant.\n"
-    )
-    return prompt
 
-def generate_answer(query: str, chunks: List[Dict[str, Any]]) -> str:
-    """Use Gemini if available; otherwise return an extractive summary."""
+    history_text = ""
+    if history:
+        history_pairs = "\n".join([f"User: {h['user']}\nAssistant: {h['bot']}" for h in history[-3:]])
+        history_text = f"Conversation so far:\n{history_pairs}\n\n"
+
+    prompt = f"""
+You are MoSPI Assistant  — a helpful AI trained only on documents from India's Ministry of Statistics and Programme Implementation.
+
+{history_text}
+User Question:
+{query}
+
+Relevant MoSPI Context:
+{context}
+
+Instructions:
+- Answer naturally, like in a Q&A chatbot.
+- Only use the provided MoSPI context. If unsure, say you don't have enough info.
+- Keep answers clear and to the point.
+- Cite sources inline like (Source: <title>, <url>).
+"""
+    return prompt.strip()
+
+
+def generate_answer(query: str, chunks: List[Dict[str, Any]], history: List[Dict[str, str]] = None) -> str:
+    """Generates a conversational answer using Gemini or fallback."""
     if llm is not None:
         try:
-            prompt = build_prompt(query, chunks)
+            prompt = build_prompt(query, chunks, history=history)
             resp = llm.generate_content(prompt)
             if hasattr(resp, "text") and resp.text:
                 return resp.text.strip()
         except Exception as e:
-            # Fall back to extractive path
-            print(f"⚠️ Gemini error, using extractive fallback: {e}")
+            print(f" Gemini error, using fallback: {e}")
 
-    # Extractive fallback: compose an answer from top snippets
+
+    if not chunks:
+        return "I don’t have enough information in the MoSPI corpus to answer that."
+
+    bullet_lines = "\n".join([f"- {c['text']} (Source: {c['title']})" for c in chunks[:3]])
+    return f"Here’s what I found in MoSPI documents:\n\n{bullet_lines}"
+
     if not chunks:
         return "I don't have enough information in the retrieved context to answer that."
 
@@ -183,7 +188,6 @@ def generate_answer(query: str, chunks: List[Dict[str, Any]]) -> str:
         + "\n\n(Generated without generative model due to configuration or error.)"
     )
 
-# ---------- Schemas ----------
 class SearchHit(BaseModel):
     chunk_id: str
     distance: float
@@ -200,7 +204,6 @@ class AskResponse(BaseModel):
     answer: str
     sources: List[SearchHit]
 
-# ---------- Routes ----------
 @app.get("/", tags=["meta"])
 def root():
     return {"message": "Welcome to the MoSPI RAG API. Use /health, /search?query=..., or /ask?query=..."}

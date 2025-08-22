@@ -1,4 +1,3 @@
-# rag/retriever.py
 import os, sqlite3, textwrap
 from typing import List, Dict, Any
 import numpy as np
@@ -26,30 +25,30 @@ class Retriever:
         self.conn.row_factory = sqlite3.Row
         self.index = faiss.read_index(index_path)
         self.model = SentenceTransformer(model_name)
-        # Helpful safety check: embedding dim must match index dim
+
         try:
             dim = self.model.get_sentence_embedding_dimension()
             if hasattr(self.index, "d") and self.index.d != dim:
                 print(f"⚠️ Embed dim ({dim}) != index dim ({self.index.d}). Ensure the same model was used.")
         except Exception:
-            pass  # not all ST models expose this cleanly
+            pass 
 
     def _embed(self, text: str) -> np.ndarray:
         vec = self.model.encode([text], convert_to_numpy=True)
         if vec.dtype != np.float32:
             vec = vec.astype("float32")
-        return vec  # shape (1, d)
+        return vec  
 
     def search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         if not query or not query.strip():
             return []
-        qv = self._embed(query)  # (1, d)
+        qv = self._embed(query)  
         D, I = self.index.search(qv, k)
         ids = [int(i) for i in I[0] if i != -1]
         if not ids:
             return []
 
-        # Fetch rows for those chunk IDs
+
         placeholders = ",".join("?" * len(ids))
         rows = self.conn.execute(
             f"""
@@ -97,7 +96,6 @@ if __name__ == "__main__":
 
     r = Retriever()
     out = r.search(args.query, k=args.k)
-    # Pretty print
     if not out:
         print("No results.")
     else:

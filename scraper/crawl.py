@@ -27,7 +27,6 @@ def save_document(conn, title, url, date_raw, summary, category, subject):
     """, (title, url, date_raw, _norm_date(date_raw), (summary or "").strip(),
           (category or "").strip(), (subject or "").strip(), doc_hash))
     conn.commit()
-    # fetch id even if pre-existed
     cur.execute("SELECT id FROM documents WHERE url = ?", (url,))
     return cur.fetchone()[0]
 
@@ -46,11 +45,9 @@ def _extract_pdfs(soup, base):
         href = a["href"].strip()
         if href.lower().endswith(".pdf"):
             pdfs.append(urljoin(base, href))
-    # de-duplicate
     return sorted(set(pdfs))
 
 def _extract_detail_metadata(soup):
-    # Generic fallbacks; adapt if MoSPI changes layout
     title = None
     for sel in ["h1", "h2", ".page-title", ".title"]:
         el = soup.select_one(sel)
@@ -61,36 +58,29 @@ def _extract_detail_metadata(soup):
         el = soup.select_one(sel)
         if el and el.get_text(strip=True):
             summary = el.get_text(" ", strip=True); break
-    # date candidates
     title = soup.select_one("h1").get_text(strip=True) if soup.select_one("h1") else None
 
-    # Try date fields
     date_text = None
     date_published = None
 
-    # Common MoSPI date pattern (e.g., "Posted on: 13 Aug 2024")
     date_tag = soup.find(string=lambda t: "Posted on" in t or "Release Date" in t)
     if date_tag:
         date_text = date_tag.strip().split(":")[-1].strip()
 
-    # Fallback: look for span with class containing "date"
     if not date_text:
         tag = soup.select_one("span.date-display-single, .field--name-field-release-date")
         if tag:
             date_text = tag.get_text(strip=True)
 
-    # Normalize
     if date_text:
         try:
             date_published = dtparse.parse(date_text, dayfirst=True).date().isoformat()
         except Exception:
             pass
 
-    # Summary / abstract
     summary_tag = soup.select_one(".field--name-body, .node__content p")
     summary = summary_tag.get_text(strip=True) if summary_tag else None
 
-    # subject/category
     subject = None
     cat = "Press Release"
     for sel in [".field--name-field-category a", ".taxonomy-term a"]:
@@ -111,7 +101,6 @@ def crawl():
                     log.error("Failed listing", extra={"context":{"url":url,"err":str(e)}}); continue
                 soup = BeautifulSoup(r.text, "html.parser")
 
-                # 1) Direct PDF links present in listing (menu <li> etc.)
                 for a in soup.find_all("a", href=True):
                     href = a["href"].strip()
                     if not href: continue
@@ -122,7 +111,6 @@ def crawl():
                         save_file_links(conn, doc_id, [full])
                         log.info("direct_pdf", extra={"context":{"doc_id":doc_id,"pdf":full}})
                 
-                # 2) Detail cards on listing
                 for item in soup.select(".views-row, .node--type-publication, .node--type-press-release"):
                     al = item.select_one("a[href]")
                     if not al: continue

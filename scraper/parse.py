@@ -10,7 +10,7 @@ log = logging.getLogger("scraper.parse")
 
 def download_pdf(file_url, file_path):
     try:
-        r = get(file_url)  # uses retries, UA, robots, rate limit
+        r = get(file_url) 
         with open(file_path, "wb") as f: f.write(r.content)
         return True
     except Exception as e:
@@ -40,7 +40,6 @@ def extract_text_and_table(file_path):
 def save_file_metadata(file_id, file_path, n_pages, text, conn):
     file_hash = hashlib.sha256(open(file_path,"rb").read()).hexdigest()
     cur = conn.cursor()
-    # ensure 'text' column exists (migration-friendly)
     cur.execute("PRAGMA table_info(files)"); cols=[r[1] for r in cur.fetchall()]
     if "text" not in cols: cur.execute("ALTER TABLE files ADD COLUMN text TEXT")
     if "processed" not in cols: cur.execute("ALTER TABLE files ADD COLUMN processed INTEGER DEFAULT 0")

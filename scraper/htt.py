@@ -39,7 +39,7 @@ def _robots_allowed(url):
             robots.read()
             _robots_cache[base] = robots
         except Exception:
-            return True  # be permissive on failure
+            return True
     return _robots_cache[base].can_fetch(USER_AGENT, url)
 
 def get(url):

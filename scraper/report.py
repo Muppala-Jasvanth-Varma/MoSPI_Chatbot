@@ -19,7 +19,6 @@ def report():
             "tables": tables,
             "docs_missing_date": no_date
         }})
-        # Top 5 recent docs
         cur.execute("SELECT id, title, date_published_norm FROM documents ORDER BY id DESC LIMIT 5")
         for r in cur.fetchall():
             log.info("recent_doc", extra={"context":{"id":r[0],"title":r[1],"date":r[2]}})

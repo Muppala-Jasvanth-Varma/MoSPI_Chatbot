@@ -1,4 +1,3 @@
-# pipeline/run.py
 import os, sqlite3, hashlib
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
@@ -8,17 +7,14 @@ import numpy as np
 DB_PATH = "data/mospi.db"
 INDEX_PATH = "data/processed/mospi.index"
 
-# 1. Connect DB
 def get_conn():
     return sqlite3.connect(DB_PATH)
 
-# 2. Load text from files
 def load_texts(conn):
     cur = conn.cursor()
     cur.execute("SELECT id, document_id, text FROM files WHERE text IS NOT NULL")
     return cur.fetchall()   # [(file_id, doc_id, text), ...]
 
-# 3. Clean + chunk
 def chunk_text(doc_id, file_id, text, splitter):
     chunks = []
     for i, chunk in enumerate(splitter.split_text(text)):
@@ -26,7 +22,6 @@ def chunk_text(doc_id, file_id, text, splitter):
         chunks.append((chunk_id, doc_id, file_id, i, chunk))
     return chunks
 
-# 4. Save chunks in DB
 def save_chunks(conn, chunks):
     cur = conn.cursor()
     cur.execute("""
@@ -49,7 +44,6 @@ def save_chunks(conn, chunks):
         """, (c[0], c[1], c[2], c[3], c[4]))
     conn.commit()
 
-# 5. Build  index with metadata
 def build_faiss(chunks):
     model = SentenceTransformer("all-MiniLM-L6-v2")
     texts = [c[4] for c in chunks]
@@ -61,7 +55,6 @@ def build_faiss(chunks):
     index = faiss.IndexIDMap(faiss.IndexFlatL2(dim))
     index.add_with_ids(embeddings, ids)
     
-    # 🔥 Ensure dir exists before saving
     os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
     faiss.write_index(index, INDEX_PATH)
     
@@ -79,9 +72,9 @@ def main():
         save_chunks(conn, chunks)   # save each file’s chunks
         all_chunks.extend(chunks)
     
-    print(f"✅ Total chunks saved: {len(all_chunks)}")
+    print(f" Total chunks saved: {len(all_chunks)}")
     n, shape = build_faiss(all_chunks)
-    print(f"✅ FAISS index built with {n} chunks, dim={shape[1]}")
+    print(f" FAISS index built with {n} chunks, dim={shape[1]}")
 
     conn.close()
 
