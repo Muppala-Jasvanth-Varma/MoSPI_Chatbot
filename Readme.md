@@ -34,7 +34,6 @@ This system consists of three main components:
 
 ### Prerequisites
 - Python 3.11+
-- Docker & Docker Compose
 - Gemini API key (free at ai.google.dev)
 
 ### 1. Clone and Setup
