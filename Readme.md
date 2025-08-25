@@ -2,14 +2,14 @@
 
 A comprehensive Retrieval-Augmented Generation (RAG) chatbot system for querying Indian government statistical data from the Ministry of Statistics and Programme Implementation (MoSPI).
 
-## 🎯 Overview
+##  Overview
 
 This system consists of three main components:
 1. **Web Scraper**: Collects and processes data from MoSPI website
 2. **ETL Pipeline**: Processes and chunks documents for search
 3. **RAG Chatbot**: Provides Q&A with cited sources using Gemini AI
 
-## 🏗️ Architecture
+##  Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -30,37 +30,14 @@ This system consists of three main components:
                     └─────────────────┘
 ```
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### Prerequisites
 - Python 3.11+
 - Gemini API key (free at ai.google.dev)
 
-### 1. Clone and Setup
-```bash
-git clone <your-repo>
-cd mospi-rag-chatbot
 
-# Copy environment file
-cp .env.example .env
 
-# Edit .env with your Gemini API key
-nano .env
-```
-
-### 2. Run the Complete System
-```bash
-# Build and start everything
-make run
-
-# Or manually:
-docker-compose up -d
-```
-
-### 3. Access the System
-- **Streamlit UI**: http://localhost:8501
-- **API Documentation**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/health
 
 ## 📁 Project Structure
 
@@ -89,32 +66,6 @@ mospi-rag-chatbot/
 └── README.md              # This file
 ```
 
-## 🔧 Development Setup
-
-### Local Development (without Docker)
-```bash
-# Install dependencies
-make install
-
-# Setup embeddings (after scraping)
-make setup
-
-# Run development servers
-make dev-run
-```
-
-### Available Commands
-```bash
-make help          # Show all available commands
-make install       # Install Python dependencies
-make setup         # Setup embeddings
-make build         # Build Docker containers
-make run           # Start complete system
-make stop          # Stop all containers
-make clean         # Clean up containers
-make test          # Run tests
-make health        # Check system health
-```
 
 ## 💬 Using the Chatbot
 
@@ -134,57 +85,6 @@ make health        # Check system health
 
 ## 🔍 API Endpoints
 
-### Chat Endpoint
-```bash
-POST /chat
-{
-    "query": "What is GDP?",
-    "k": 5,
-    "temperature": 0.7
-}
-```
-
-### Health Check
-```bash
-GET /health
-{
-    "status": "healthy",
-    "index_loaded": true,
-    "total_chunks": 1250
-}
-```
-
-### Search (Debug)
-```bash
-GET /search/gdp?k=5
-```
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-make test
-
-# Run specific test file
-cd rag && python -m pytest test_rag.py -v
-
-# Health check
-make health
-```
-
-## 🐳 Docker Configuration
-
-### Services
-- **rag-api**: FastAPI backend service
-- **rag-ui**: Streamlit frontend service  
-- **setup-embeddings**: One-time embedding creation
-
-### Volumes
-- `./data`: Persistent data storage
-- `./rag`: Application code
-
-### Networks
-- **rag-network**: Internal communication between services
 
 ## 📊 Data Pipeline
 
